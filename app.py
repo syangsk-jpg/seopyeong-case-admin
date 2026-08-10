@@ -580,6 +580,23 @@ def _render_main_toolbar() -> None:
     with col_title:
         st.title("주간 광고 결과")
         st.caption("화면은 SQLite DB만 읽습니다. 메뉴별로 해당 채널만 동기화할 수 있습니다.")
+        required_cloud = {
+            "NAVER_CUSTOMER_ID": config.NAVER_CUSTOMER_ID,
+            "NAVER_API_KEY": config.NAVER_API_KEY,
+            "NAVER_API_SECRET": config.NAVER_API_SECRET,
+            "GOOGLE_ADS_DEVELOPER_TOKEN": config.GOOGLE_ADS_DEVELOPER_TOKEN,
+            "GOOGLE_ADS_CLIENT_ID": config.GOOGLE_ADS_CLIENT_ID,
+            "GOOGLE_ADS_CLIENT_SECRET": config.GOOGLE_ADS_CLIENT_SECRET,
+            "GOOGLE_ADS_REFRESH_TOKEN": config.GOOGLE_ADS_REFRESH_TOKEN,
+            "GOOGLE_ADS_CUSTOMER_ID": config.GOOGLE_ADS_CUSTOMER_ID,
+            "GA4_PROPERTY_ID": config.GA4_PROPERTY_ID,
+            "GOOGLE_APPLICATION_CREDENTIALS": config.GOOGLE_APPLICATION_CREDENTIALS,
+        }
+        missing_cloud = [key for key, value in required_cloud.items() if not value]
+        if missing_cloud:
+            st.error("Cloud Secrets 누락: " + ", ".join(missing_cloud))
+        else:
+            st.success("네이버 · 구글 · GA4 연결 설정이 모두 준비되었습니다.")
     with col_opt:
         force = st.checkbox(
             "강제 새로고침",
