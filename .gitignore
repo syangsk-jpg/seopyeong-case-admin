@@ -1,0 +1,5 @@
+.streamlit/secrets.toml
+.env
+data/case_drafts/
+__pycache__/
+*.pyc
