@@ -195,6 +195,37 @@ def _live_budget_amount_micros(client: Any, customer_id: str, budget_resource_na
     raise RuntimeError("예산 리소스를 찾을 수 없습니다 (계정에서 변경/삭제됐을 수 있습니다).")
 
 
+def fetch_live_campaign_settings() -> list[dict[str, Any]]:
+    """Read current campaign serving status, bidding strategy and daily budget."""
+    client = _build_google_ads_client()
+    if client is None:
+        raise RuntimeError("Google Ads 클라이언트를 생성하지 못했습니다.")
+    ga = client.get_service("GoogleAdsService")
+    query = """
+        SELECT campaign.id, campaign.name, campaign.status, campaign.primary_status,
+               campaign.primary_status_reasons, campaign.bidding_strategy_type,
+               campaign.campaign_budget, campaign_budget.amount_micros
+        FROM campaign
+        WHERE campaign.status != REMOVED
+    """
+    rows: list[dict[str, Any]] = []
+    for batch in ga.search_stream(customer_id=_customer_id(), query=query):
+        for row in batch.results:
+            rows.append(
+                {
+                    "campaign_id": str(row.campaign.id),
+                    "campaign_name": str(row.campaign.name or ""),
+                    "status": row.campaign.status.name,
+                    "primary_status": row.campaign.primary_status.name,
+                    "primary_status_reasons": [r.name for r in row.campaign.primary_status_reasons],
+                    "bidding_strategy": row.campaign.bidding_strategy_type.name,
+                    "budget_resource_name": str(row.campaign.campaign_budget or ""),
+                    "daily_budget_won": int(row.campaign_budget.amount_micros or 0) // 1_000_000,
+                }
+            )
+    return rows
+
+
 def update_campaign_budget(budget_resource_name: str | None, change_pct: float) -> dict[str, Any]:
     if not budget_resource_name:
         return {"ok": False, "error": "예산 리소스가 해석되지 않았습니다."}
@@ -226,6 +257,45 @@ def update_campaign_budget(budget_resource_name: str | None, change_pct: float) 
             "new_amount_won": new_micros // 1_000_000,
             "requested_change_pct": change_pct,
             "applied_change_pct": clamped_pct,
+        }
+    except Exception as exc:  # noqa: BLE001
+        return _wrap_error(exc)
+
+
+def set_campaign_budget_won(budget_resource_name: str | None, target_won: float) -> dict[str, Any]:
+    """Set an exact daily budget, while enforcing the configured one-step percentage guardrail."""
+    if not budget_resource_name:
+        return {"ok": False, "error": "예산 리소스가 해석되지 않았습니다."}
+    try:
+        client = _require_client()
+    except (PermissionError, RuntimeError) as exc:
+        return {"ok": False, "error": str(exc)}
+    try:
+        from google.api_core import protobuf_helpers
+
+        customer_id = _customer_id()
+        current_micros = _live_budget_amount_micros(client, customer_id, budget_resource_name)
+        requested_micros = int(round(float(target_won) * 1_000_000))
+        if requested_micros <= 0:
+            return {"ok": False, "error": "목표 일예산은 0원보다 커야 합니다."}
+        requested_pct = 100.0 * (requested_micros - current_micros) / current_micros if current_micros else 0.0
+        limit = abs(float(config.GOOGLE_ADS_MAX_BUDGET_CHANGE_PCT))
+        if abs(requested_pct) > limit + 0.001:
+            return {"ok": False, "error": f"한 번에 변경 가능한 범위(±{limit:.0f}%)를 넘었습니다."}
+
+        service = client.get_service("CampaignBudgetService")
+        operation = client.get_type("CampaignBudgetOperation")
+        budget = operation.update
+        budget.resource_name = budget_resource_name
+        budget.amount_micros = requested_micros
+        client.copy_from(operation.update_mask, protobuf_helpers.field_mask(None, budget._pb))
+        response = service.mutate_campaign_budgets(customer_id=customer_id, operations=[operation])
+        return {
+            "ok": True,
+            "resource_name": response.results[0].resource_name,
+            "old_amount_won": current_micros // 1_000_000,
+            "new_amount_won": requested_micros // 1_000_000,
+            "applied_change_pct": requested_pct,
         }
     except Exception as exc:  # noqa: BLE001
         return _wrap_error(exc)
@@ -394,8 +464,12 @@ def apply_proposal(proposal_id: int) -> dict[str, Any]:
         elif action_type == "keyword_enable":
             result = enable_keyword(row.get("resolved_ad_group_id"), row.get("resolved_criterion_id"))
         elif action_type == "campaign_budget_change":
-            pct = float(row.get("change_pct") or 0)
-            result = update_campaign_budget(row.get("resolved_budget_resource_name"), pct)
+            proposed = str(row.get("proposed_value") or "").replace(",", "").replace("원", "").strip()
+            if proposed:
+                result = set_campaign_budget_won(row.get("resolved_budget_resource_name"), float(proposed))
+            else:
+                pct = float(row.get("change_pct") or 0)
+                result = update_campaign_budget(row.get("resolved_budget_resource_name"), pct)
         elif action_type == "keyword_bid_change":
             pct = float(row.get("change_pct") or 0)
             result = update_keyword_bid(row.get("resolved_ad_group_id"), row.get("resolved_criterion_id"), pct)
