@@ -2307,6 +2307,12 @@ def render_dashboard_main_only() -> None:
             ws = label_to_start[sel_lbl]
             ctab = pd.DataFrame([dict(x) for x in db.fetch_naver_week_campaign_views(ws)])
             if not ctab.empty:
+                # Display KRW as whole won with thousands separators (e.g. 350,678),
+                # instead of SQLite/Pandas' default four-decimal representation.
+                if "cost" in ctab.columns:
+                    ctab["cost"] = pd.to_numeric(ctab["cost"], errors="coerce").fillna(0).map(
+                        lambda value: f"{value:,.0f}"
+                    )
                 ctab = ctab.rename(
                     columns={
                         "campaign_name": "캠페인",
