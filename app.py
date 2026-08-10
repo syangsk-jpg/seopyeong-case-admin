@@ -2236,10 +2236,11 @@ def render_dashboard_main_only() -> None:
     if _show_section("today_snap"):
         st.subheader("오늘 스냅샷 (참고)")
         wt = merge.week_ad_performance(merged_today)
-        c1, c2, c3, c4, c5 = st.columns(5)
+        c1, c2, c3 = st.columns(3)
         c1.metric("오늘 총 광고비", f"{totals_today['total_cost']:,.0f} 원")
         c2.metric("오늘 통합 클릭", f"{int(wt['total_clicks']):,}")
         c3.metric("오늘 세션", f"{int(totals_today['total_sessions']):,}")
+        c4, c5 = st.columns(2)
         c4.metric("오늘 활성 사용자", f"{totals_today['total_active_users']:,.1f}")
         c5.metric("오늘 ROAS", f"{totals_today['roas']:.2f}x")
         st.caption(
@@ -2554,17 +2555,23 @@ def render_dashboard_main_only() -> None:
         if merged.empty:
             st.info("선택 주 데이터가 없습니다. 동기화를 실행하세요.")
         else:
+            daily_chart = merged.copy()
+            daily_chart["날짜"] = pd.to_datetime(daily_chart["ts_hour"]).dt.strftime("%m월 %d일")
+            daily_chart = daily_chart.groupby("날짜", as_index=False).agg(광고비=("total_cost", "sum"), 세션=("sessions", "sum"))
             fig1 = go.Figure()
-            fig1.add_trace(go.Bar(x=merged["ts_hour"], y=merged["total_cost"], name="광고비", yaxis="y"))
+            fig1.add_trace(go.Bar(x=daily_chart["날짜"],y=daily_chart["광고비"],name="광고비",yaxis="y",text=[f"{v:,.0f}원" for v in daily_chart["광고비"]],textposition="outside",hovertemplate="%{x}<br>광고비 %{y:,.0f}원<extra></extra>"))
             fig1.add_trace(
                 go.Scatter(
-                    x=merged["ts_hour"], y=merged["sessions"], name="세션", yaxis="y2", mode="lines+markers"
+                    x=daily_chart["날짜"],y=daily_chart["세션"],name="세션",yaxis="y2",mode="lines+markers+text",text=[f"{int(v):,}회" for v in daily_chart["세션"]],textposition="top center",hovertemplate="%{x}<br>세션 %{y:,.0f}회<extra></extra>"
                 )
             )
             fig1.update_layout(
-                yaxis=dict(title="광고비 (원)", side="left"),
-                yaxis2=dict(title="세션", overlaying="y", side="right", showgrid=False),
+                height=560,font=dict(size=15),
+                yaxis=dict(title="광고비 (원)",side="left",tickformat=",.0f",ticksuffix="원"),
+                yaxis2=dict(title="세션 (회)",overlaying="y",side="right",showgrid=False,tickformat=",.0f",ticksuffix="회"),
+                xaxis=dict(title="날짜",tickfont=dict(size=14)),
                 hovermode="x unified",
+                bargap=0.32,
             )
             plotly_responsive(fig1)
             with st.expander("같은 기간 · 시간별 통합 클릭", expanded=False):
