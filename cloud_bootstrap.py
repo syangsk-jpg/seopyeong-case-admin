@@ -14,6 +14,8 @@ def prepare():
         json.loads(raw)
         path.write_text(raw,encoding="utf-8")
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"]=str(path)
+    os.environ.setdefault("SYNC_LOOKBACK_DAYS","35")
+    os.environ.setdefault("SYNC_INCREMENTAL_DAYS","2")
     os.environ.setdefault("LOGIN_REQUIRED","true")
     if not os.getenv("DASHBOARD_PASSWORD","").strip():
         raise RuntimeError("DASHBOARD_PASSWORD secret is required")
