@@ -3,3 +3,8 @@
 data/case_drafts/
 __pycache__/
 *.pyc
+*.log
+data/*.db
+ga4-service-account.json
+.cloud-test*
+.full-test*

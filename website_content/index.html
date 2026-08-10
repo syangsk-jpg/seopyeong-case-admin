@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="네이버 검색광고, Google Ads, GA4 데이터를 한곳에서 비교·분석하는 주간 마케팅 통합 대시보드 프로젝트입니다.">
+  <title>주간 광고·GA4 통합 대시보드</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --surface: #ffffff;
+      --text: #172033;
+      --muted: #65708a;
+      --line: #e4e9f2;
+      --primary: #2563eb;
+      --primary-dark: #183ea6;
+      --naver: #03c75a;
+      --google: #4285f4;
+      --ga4: #f59e0b;
+      --shadow: 0 22px 60px rgba(23, 32, 51, .10);
+      --radius: 24px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background: var(--bg);
+      font-family: Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", system-ui, sans-serif;
+      line-height: 1.72;
+      word-break: keep-all;
+    }
+    a { color: inherit; }
+    img { display: block; max-width: 100%; }
+    .wrap { width: min(1160px, calc(100% - 40px)); margin: 0 auto; }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 18px;
+      color: #3156bd;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .eyebrow::before { content: ""; width: 28px; height: 3px; border-radius: 9px; background: var(--primary); }
+    h1, h2, h3 { margin: 0; line-height: 1.25; letter-spacing: -.035em; }
+    h1 { font-size: clamp(42px, 6vw, 76px); }
+    h2 { font-size: clamp(30px, 4vw, 46px); }
+    h3 { font-size: 22px; }
+    p { margin: 0; }
+    .lead { color: var(--muted); font-size: clamp(18px, 2vw, 22px); }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 92px 0 78px;
+      color: white;
+      background: linear-gradient(135deg, #0c1839 0%, #17377c 52%, #2563eb 100%);
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      top: -180px;
+      right: -120px;
+      width: 520px;
+      height: 520px;
+      border: 100px solid rgba(255,255,255,.07);
+      border-radius: 50%;
+    }
+    .hero .wrap { position: relative; z-index: 1; }
+    .hero .eyebrow { color: #bfdbfe; }
+    .hero .eyebrow::before { background: #93c5fd; }
+    .hero h1 { max-width: 940px; }
+    .hero .lead { max-width: 780px; margin-top: 26px; color: #dbe7ff; }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 50px;
+      padding: 0 22px;
+      border: 1px solid rgba(255,255,255,.35);
+      border-radius: 12px;
+      color: white;
+      font-weight: 800;
+      text-decoration: none;
+      background: rgba(255,255,255,.08);
+    }
+    .button.primary { color: #17377c; background: white; border-color: white; }
+    .hero-tags { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 44px; }
+    .hero-tags span { padding: 7px 12px; border: 1px solid rgba(255,255,255,.24); border-radius: 99px; color: #e7efff; font-size: 13px; }
+
+    .showcase { position: relative; z-index: 2; margin-top: -36px; }
+    .browser-frame { overflow: hidden; border: 1px solid rgba(218,225,239,.9); border-radius: var(--radius); background: white; box-shadow: var(--shadow); }
+    .browser-bar { display: flex; align-items: center; gap: 7px; height: 42px; padding: 0 16px; background: #f2f4f8; border-bottom: 1px solid var(--line); }
+    .browser-bar i { width: 10px; height: 10px; border-radius: 50%; background: #c8cfdb; }
+    .browser-frame img { width: 100%; height: auto; }
+
+    section { padding: 100px 0; }
+    .section-head { max-width: 760px; margin-bottom: 48px; }
+    .section-head .lead { margin-top: 16px; }
+    .intro-grid { display: grid; grid-template-columns: .85fr 1.15fr; gap: 56px; align-items: start; }
+    .problem { padding: 28px; border-left: 5px solid var(--primary); border-radius: 0 18px 18px 0; background: white; box-shadow: 0 12px 36px rgba(23,32,51,.06); }
+    .problem strong { display: block; margin-bottom: 8px; font-size: 20px; }
+    .problem p, .intro-copy p { color: var(--muted); }
+    .intro-copy { display: grid; gap: 18px; }
+
+    .features { background: white; }
+    .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .card { min-height: 255px; padding: 28px; border: 1px solid var(--line); border-radius: 20px; background: #fbfcff; }
+    .card-number { display: grid; place-items: center; width: 42px; height: 42px; margin-bottom: 22px; border-radius: 12px; color: white; font-weight: 900; background: var(--primary); }
+    .card h3 { margin-bottom: 12px; }
+    .card p { color: var(--muted); font-size: 15px; }
+
+    .workflow { display: grid; gap: 86px; }
+    .step { display: grid; grid-template-columns: 1fr 1.2fr; gap: 50px; align-items: center; }
+    .step:nth-child(even) { grid-template-columns: 1.2fr 1fr; }
+    .step:nth-child(even) .step-copy { order: 2; }
+    .step:nth-child(even) .browser-frame { order: 1; }
+    .step-label { display: inline-flex; margin-bottom: 15px; padding: 6px 11px; border-radius: 8px; color: var(--primary-dark); font-size: 13px; font-weight: 900; background: #e7efff; }
+    .step-copy h3 { font-size: clamp(26px, 3vw, 36px); }
+    .step-copy p { margin-top: 16px; color: var(--muted); }
+    .step-copy ul { margin: 18px 0 0; padding-left: 20px; color: #3f4b62; }
+    .step .browser-frame { border-radius: 18px; box-shadow: 0 18px 42px rgba(23,32,51,.11); }
+    .result-block { margin-top: 92px; padding: 40px; border: 1px solid var(--line); border-radius: 26px; background: #f8faff; }
+    .result-intro { display: grid; grid-template-columns: .8fr 1.2fr; gap: 32px; margin-bottom: 40px; }
+    .result-intro p, .result-copy p { color: var(--muted); }
+    .result-gallery { display: grid; gap: 32px; }
+    .result-item { display: grid; grid-template-columns: 1.15fr .85fr; gap: 30px; align-items: center; }
+    .result-item:nth-child(even) { grid-template-columns: .85fr 1.15fr; }
+    .result-item:nth-child(even) .result-copy { order: 2; }
+    .result-item:nth-child(even) .browser-frame { order: 1; }
+    .result-copy strong { display: block; margin-bottom: 10px; color: var(--primary-dark); font-size: 20px; }
+    .result-copy p { font-size: 15px; }
+    .interpretation { margin-top: 16px; padding: 16px 18px; border-left: 4px solid var(--primary); border-radius: 0 12px 12px 0; background: white; color: #33405a; font-size: 14px; }
+
+    .special { color: white; background: #121d38; }
+    .special .eyebrow { color: #93c5fd; }
+    .special .eyebrow::before { background: #60a5fa; }
+    .special .lead { color: #b9c6df; }
+    .special-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .special-item { padding: 24px; border: 1px solid rgba(255,255,255,.1); border-radius: 18px; background: rgba(255,255,255,.045); }
+    .special-item strong { display: block; margin-bottom: 7px; font-size: 18px; }
+    .special-item span { color: #b9c6df; font-size: 15px; }
+
+    .tech-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 34px; }
+    .tech-list span { padding: 10px 15px; border: 1px solid var(--line); border-radius: 99px; color: #44516b; background: white; font-size: 14px; font-weight: 700; }
+    .outcome { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 42px; }
+    .outcome article { padding: 27px; border-radius: 18px; background: white; border: 1px solid var(--line); }
+    .outcome strong { display: block; margin-bottom: 7px; font-size: 19px; }
+    .outcome p { color: var(--muted); }
+
+    .cta { padding: 78px 0; color: white; text-align: center; background: linear-gradient(135deg, #1d4ed8, #17377c); }
+    .cta p { max-width: 700px; margin: 18px auto 0; color: #dbe7ff; font-size: 18px; }
+    .cta .pdf-point { display: inline-flex; align-items: center; gap: 10px; margin-top: 28px; padding: 13px 20px; border: 1px solid rgba(255,255,255,.32); border-radius: 12px; color: white; background: rgba(255,255,255,.10); font-weight: 800; }
+    footer { padding: 32px 0; color: #7b859a; text-align: center; font-size: 13px; background: #0e172b; }
+
+    @media (max-width: 900px) {
+      .hero { padding-top: 68px; }
+      .intro-grid, .step, .step:nth-child(even), .result-intro, .result-item, .result-item:nth-child(even) { grid-template-columns: 1fr; gap: 30px; }
+      .step:nth-child(even) .step-copy, .step:nth-child(even) .browser-frame, .result-item:nth-child(even) .result-copy, .result-item:nth-child(even) .browser-frame { order: initial; }
+      .feature-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 620px) {
+      .wrap { width: min(100% - 26px, 1160px); }
+      section { padding: 72px 0; }
+      .feature-grid, .special-grid, .outcome { grid-template-columns: 1fr; }
+      .card { min-height: auto; }
+      .workflow { gap: 64px; }
+      .browser-bar { height: 32px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <p class="eyebrow">Marketing Analytics Project</p>
+      <h1>흩어진 광고 데이터를<br>하나의 주간 인사이트로</h1>
+      <p class="lead">네이버 검색광고, Google Ads, GA4 데이터를 자동 수집하고 광고 성과부터 실제 웹사이트 유입과 전환까지 한 화면에서 비교하는 통합 대시보드입니다.</p>
+      <div class="hero-actions">
+        <a class="button primary" href="#how-to">사용 화면 살펴보기</a>
+        <a class="button" href="#features">핵심 기능 보기</a>
+      </div>
+      <div class="hero-tags" aria-label="주요 기술">
+        <span>Python</span><span>Streamlit</span><span>SQLite</span><span>Plotly</span><span>Google Ads API</span><span>GA4</span><span>Gemini AI</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="showcase wrap">
+      <figure class="browser-frame">
+        <div class="browser-bar" aria-hidden="true"><i></i><i></i><i></i></div>
+        <img src="images/01_home_overview_raw.png" alt="주간 광고 GA4 통합 대시보드 메인 화면" loading="eager">
+      </figure>
+    </div>
+
+    <section id="about">
+      <div class="wrap intro-grid">
+        <div>
+          <p class="eyebrow">Why I Built It</p>
+          <h2>매주 반복되던 광고 보고를 자동화했습니다</h2>
+        </div>
+        <div class="intro-copy">
+          <div class="problem">
+            <strong>해결하고 싶었던 문제</strong>
+            <p>채널마다 관리 화면과 지표 체계가 달라 성과 데이터를 모으고 같은 기간으로 맞추는 데 많은 시간이 들었습니다.</p>
+          </div>
+          <p>이 프로젝트는 여러 채널의 데이터를 하나의 SQLite 데이터베이스에 모아 완료된 월요일~일요일을 기준으로 자동 정리합니다. 화면을 열 때마다 외부 API를 호출하지 않고 저장된 데이터를 읽기 때문에 빠르고 안정적으로 과거 성과를 확인할 수 있습니다.</p>
+          <p>단순한 노출·클릭 집계를 넘어 광고비, CTR, 캠페인, 키워드, 웹사이트 세션과 전환 이벤트를 함께 연결했습니다. 따라서 광고를 얼마나 집행했는지뿐 아니라 그 결과 실제 방문과 행동이 얼마나 발생했는지까지 판단할 수 있습니다.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="features" id="features">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="eyebrow">Core Features</p>
+          <h2>수집부터 분석, 보고서까지 한 흐름으로</h2>
+          <p class="lead">데이터를 모으는 작업과 의사결정에 필요한 결과물을 하나의 대시보드 안에 연결했습니다.</p>
+        </div>
+        <div class="feature-grid">
+          <article class="card"><span class="card-number">01</span><h3>멀티 채널 통합</h3><p>네이버 검색광고, Google Ads, GA4 데이터를 동일한 주차 기준으로 한곳에 정리합니다.</p></article>
+          <article class="card"><span class="card-number">02</span><h3>주간 자동 비교</h3><p>해당 주와 그 전 주의 광고비, 클릭, CTR, 세션과 전환 변화를 자동 계산합니다.</p></article>
+          <article class="card"><span class="card-number">03</span><h3>증분 동기화</h3><p>이미 저장된 데이터는 재사용하고 누락되거나 최근인 구간만 수집해 API 호출을 절약합니다.</p></article>
+          <article class="card"><span class="card-number">04</span><h3>상세 성과 분석</h3><p>캠페인·키워드별 성과와 추이를 확인하고 효율이 높거나 낮은 후보를 자동 요약합니다.</p></article>
+          <article class="card"><span class="card-number">05</span><h3>AI 주간 해설</h3><p>Gemini가 핵심 변화와 개선 포인트를 문장으로 분석하며 후속 질문도 이어갈 수 있습니다.</p></article>
+          <article class="card"><span class="card-number">06</span><h3>보고서 내보내기</h3><p>AI 분석을 포함한 가로형 PDF 보고서와 캠페인 비교 CSV를 바로 내려받을 수 있습니다.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="how-to">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="eyebrow">How It Works</p>
+          <h2>실제 사용 흐름</h2>
+          <p class="lead">전체 데이터를 갱신한 뒤 분석할 채널과 주차를 선택하면 됩니다.</p>
+        </div>
+        <div class="workflow">
+          <article class="step">
+            <div class="step-copy">
+              <span class="step-label">STEP 01</span>
+              <h3>전체 데이터를 한 번에 갱신</h3>
+              <p>상단의 전체 동기화를 누르면 네이버, Google Ads, 홈페이지 데이터를 최신 상태로 갱신합니다. 강제 새로고침을 끄면 저장된 과거 데이터는 재사용합니다.</p>
+              <ul><li>채널 전체 일괄 동기화</li><li>DB 캐시 기반의 빠른 증분 수집</li><li>PDF 보고서 즉시 다운로드</li></ul>
+            </div>
+            <figure class="browser-frame"><img src="images/01_home_overview_guided.png" alt="전체 동기화 버튼 사용 안내" loading="lazy"></figure>
+          </article>
+
+          <article class="step">
+            <div class="step-copy">
+              <span class="step-label">STEP 02</span>
+              <h3>분석 채널과 조회 주차 선택</h3>
+              <p>왼쪽 사이드바에서 홈, 네이버, 구글, 홈페이지 중 하나를 선택합니다. 조회할 주와 화면에 표시할 보고서 섹션도 필요한 것만 고를 수 있습니다.</p>
+              <ul><li>채널별 전용 화면</li><li>완료 주차 기준 선택</li><li>보고서 섹션 필터</li></ul>
+            </div>
+            <figure class="browser-frame"><img src="images/02_sidebar_navigation_guided.png" alt="사이드바 채널 선택 안내" loading="lazy"></figure>
+          </article>
+
+          <article class="step">
+            <div class="step-copy">
+              <span class="step-label" style="color:#087b3d;background:#e4f9ed">STEP 03 · NAVER</span>
+              <h3>네이버 검색광고 상세 분석</h3>
+              <p>선택 주와 이전 주의 캠페인 성과를 비교하고 광고비, 클릭, CTR, 주요 키워드와 캠페인별 특이사항을 확인합니다.</p>
+              <ul><li>캠페인별 주간 비교</li><li>키워드 TOP 성과</li><li>네이버 데이터만 선택 동기화</li></ul>
+            </div>
+            <figure class="browser-frame"><img src="images/03_naver_dashboard_guided.png" alt="네이버 검색광고 주간 성과 화면" loading="lazy"></figure>
+          </article>
+
+          <article class="step">
+            <div class="step-copy">
+              <span class="step-label">STEP 04 · GOOGLE ADS</span>
+              <h3>Google Ads 성과를 같은 기준으로 비교</h3>
+              <p>네이버와 동일한 주차 기준으로 Google Ads 캠페인의 비용과 클릭 변화를 분석합니다. 비교표는 CSV로 내려받아 추가 분석에도 활용할 수 있습니다.</p>
+              <ul><li>캠페인별 비용·클릭·CTR</li><li>주간 증감률 자동 계산</li><li>CSV 내보내기</li></ul>
+            </div>
+            <figure class="browser-frame"><img src="images/04_google_dashboard_guided.png" alt="Google Ads 주간 성과 화면" loading="lazy"></figure>
+          </article>
+
+          <article class="step">
+            <div class="step-copy">
+              <span class="step-label" style="color:#9a5c00;background:#fff3d3">STEP 05 · GA4</span>
+              <h3>광고 클릭 이후의 방문과 전환 확인</h3>
+              <p>GA4의 유입 채널, 세션 및 주요 전환 이벤트를 광고 데이터와 함께 확인합니다. 매체 성과가 실제 웹사이트 행동으로 이어졌는지 판단할 수 있습니다.</p>
+              <ul><li>유입 채널별 세션</li><li>주요 전환 이벤트</li><li>광고비와 방문자 관계 비교</li></ul>
+            </div>
+            <figure class="browser-frame"><img src="images/05_ga4_dashboard_guided.png" alt="GA4 유입 및 전환 분석 화면" loading="lazy"></figure>
+          </article>
+        </div>
+
+        <div class="result-block">
+          <div class="result-intro">
+            <div><p class="eyebrow">Actual GA4 Output</p><h2>방문과 전환을<br>어떻게 풀어 보여주는가</h2></div>
+            <p>대시보드는 “방문자가 늘었다”는 한 문장으로 끝내지 않습니다. 어디에서 들어왔는지, 들어온 뒤 어떤 행동을 했는지, 특정 기능을 실제로 사용했는지를 세 단계로 나눠 보여줍니다. 공개용 캡처에서는 광고 금액만 흐리게 처리했습니다.</p>
+          </div>
+          <div class="result-gallery">
+            <article class="result-item">
+              <div class="result-copy"><strong>1. 어디에서 들어왔는가</strong><p>유료 검색, 자연 검색, 직접 접속 등 채널별 세션을 해당 주와 그 전 주로 비교하고, 각 채널이 어떤 유입을 뜻하는지 설명합니다.</p><div class="interpretation"><b>해석 예시</b><br>유료 검색은 광고 클릭의 방문 연결 정도를, 자연 검색은 비광고 검색 성과를, 직접 접속은 브랜드 인지도나 재방문 가능성을 판단하는 데 활용합니다.</div></div>
+              <figure class="browser-frame"><img src="images/06_ga4_channel_results_guided.png" alt="GA4 채널별 유입 주간 비교 결과" loading="lazy"></figure>
+            </article>
+            <article class="result-item">
+              <div class="result-copy"><strong>2. 방문 후 무엇을 했는가</strong><p>상담 클릭, 카카오톡 문의, 전문분야 클릭, 소개 페이지 체류, AI 상담 전송 등 중요한 행동을 전환 이벤트로 정의해 비교합니다.</p><div class="interpretation"><b>해석 예시</b><br>세션이 늘었지만 문의·상담이 늘지 않았다면 유입 품질이나 랜딩 동선을 점검합니다. 방문 증가보다 전환 증가가 크다면 전환 효율이 개선된 것으로 해석합니다.</div></div>
+              <figure class="browser-frame"><img src="images/07_ga4_conversion_results_guided.png" alt="GA4 주요 전환 이벤트 결과" loading="lazy"></figure>
+            </article>
+            <article class="result-item">
+              <div class="result-copy"><strong>3. 기능을 실제로 사용했는가</strong><p>상담안내AI 페이지 조회와 메시지 전송을 함께 비교해 단순 진입과 실제 사용을 구분합니다. 실사용률과 평균 참여 시간도 보여줍니다.</p><div class="interpretation"><b>자동 진단 예시</b><br>페이지 조회는 있지만 전송 클릭이 없다면 진입 후 이탈했거나 이벤트 태그가 누락됐을 가능성을 안내해 다음 점검 행동까지 제시합니다.</div></div>
+              <figure class="browser-frame"><img src="images/08_ga4_ai_usage_results_guided.png" alt="상담안내AI 실제 사용 결과" loading="lazy"></figure>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="special">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="eyebrow">What Makes It Special</p>
+          <h2>화려한 차트보다 실제 운영 효율에 집중했습니다</h2>
+          <p class="lead">반복 보고 과정에서 시간을 많이 쓰는 수집, 기간 정렬, 비교, 해설과 파일 제작을 자동화했습니다.</p>
+        </div>
+        <div class="special-grid">
+          <div class="special-item"><strong>화면 조회와 API 수집 분리</strong><span>대시보드는 DB만 읽고 데이터 수집은 명시적으로 실행해 과거 조회가 빠르고 예측 가능합니다.</span></div>
+          <div class="special-item"><strong>동일한 주차 기준</strong><span>서로 다른 광고·분석 플랫폼의 데이터를 완료된 월~일 구간으로 맞춰 비교합니다.</span></div>
+          <div class="special-item"><strong>채널별 선택 동기화</strong><span>필요한 채널만 새로 수집할 수 있어 호출 비용과 업무 대기 시간을 줄입니다.</span></div>
+          <div class="special-item"><strong>보고까지 이어지는 분석</strong><span>성과 화면, 자동 특이사항, AI 해설, PDF·CSV 결과물을 하나의 사용자 흐름으로 제공합니다.</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="section-head">
+          <p class="eyebrow">Technology & Outcome</p>
+          <h2>실제 운영을 고려한 기술 구성</h2>
+          <p class="lead">로컬 실행부터 정기 수집, 알림과 보고서 생성까지 확장할 수 있도록 구성했습니다.</p>
+          <div class="tech-list">
+            <span>Python</span><span>Streamlit</span><span>pandas</span><span>Plotly</span><span>SQLite</span><span>Naver Ads API</span><span>Google Ads API</span><span>GA4 Data API</span><span>Gemini API</span><span>ReportLab</span><span>Telegram</span>
+          </div>
+        </div>
+        <div class="outcome">
+          <article><strong>반복 업무 단축</strong><p>채널별 파일을 내려받아 직접 합치고 표와 보고 문장을 작성하던 과정을 대시보드 동기화와 보고서 다운로드로 줄였습니다.</p></article>
+          <article><strong>의사결정 범위 확장</strong><p>광고 매체 지표와 GA4 방문·전환을 연결해 클릭 수뿐 아니라 실제 사용자 행동을 기준으로 성과를 판단할 수 있습니다.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta">
+      <div class="wrap">
+        <h2>광고 클릭에서 웹사이트 전환까지,<br>한 화면에서 확인합니다</h2>
+        <p>네이버 검색광고·Google Ads·GA4를 연결해 매주 반복되던 마케팅 보고를 더 빠르고 일관된 과정으로 바꾼 프로젝트입니다. 분석이 끝나면 화면 상단의 PDF 보고서 버튼으로 결과를 바로 내려받을 수 있어 별도의 보고서 편집 과정도 줄일 수 있습니다.</p>
+        <div class="pdf-point">📄 클릭 한 번으로 주간 분석 결과를 가로형 PDF 보고서로</div>
+      </div>
+    </section>
+  </main>
+
+  <footer><div class="wrap">Weekly Ads & GA4 Integrated Dashboard · Project Showcase</div></footer>
+</body>
+</html>

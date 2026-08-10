@@ -1,7 +1,7 @@
 """Gemini 기반 상담사례 구조화·익명화."""
 import base64,json,re
 from pathlib import Path
-import gemini_client as gemini
+import gemini_weekly_analysis as gemini
 SITE=Path(r"D:\coding\splawilsan_homepage")
 CASES=SITE/"_deploy"/"case_pipeline"/"staging"/"cases.json"
 ALLOWED=["상속·종중·가사","민사·손해배상","형사","조세","이혼·상간","기업·법률자문","교통사고","마약","학교폭력"]
