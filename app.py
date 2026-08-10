@@ -2018,6 +2018,10 @@ GA4는 사람들이 검색창에 쓴 낱말을 대부분 알려주지 않습니�
                 st.markdown(f"- {line}")
 
         detail_lines: list[str] = []
+        page_table_rows: list[dict[str, object]] = []
+        case_summary_rows: list[dict[str, object]] = []
+        case_table_rows: list[dict[str, object]] = []
+        search_table_rows: list[dict[str, object]] = []
         report_daily_curr = st.session_state.get("ga4_daily_curr", [])
         report_daily_prev = st.session_state.get("ga4_daily_prev", [])
         if report_daily_curr:
@@ -2042,10 +2046,7 @@ GA4는 사람들이 검색창에 쓴 낱말을 대부분 알려주지 않습니�
             for rank, row in enumerate(report_content[:3], start=1):
                 curr_views = int(row.get("views", 0))
                 before_views = prev_views.get(str(row.get("page_path")), 0)
-                detail_lines.append(
-                    f"많이 본 페이지 {rank}위는 **{row.get('page_title') or row.get('page_path')}**입니다. "
-                    f"이번 주 **{curr_views:,}회**, 전주 **{before_views:,}회** 보았습니다."
-                )
+                page_table_rows.append({"순위": rank, "페이지·글 제목": row.get("page_title") or row.get("page_path"), "이번 주": curr_views, "전주": before_views, "증감": curr_views - before_views})
 
         case_interest = homepage_content.summarize_case_views(
             report_content,
@@ -2059,21 +2060,10 @@ GA4는 사람들이 검색창에 쓴 낱말을 대부분 알려주지 않습니�
             users_case = int(values.get("users_curr", 0))
             articles_case = int(values.get("articles_curr", 0))
             if views_curr > 0 or views_prev > 0:
-                detail_lines.append(
-                    f"**{case_type}**는 이번 주 **{articles_case}개 글**이 "
-                    f"모두 **{views_curr:,}회** 읽혔습니다. 전주는 **{views_prev:,}회**였고, "
-                    f"글별 방문자 수를 합치면 **{users_case:,}명**입니다. "
-                    "한 사람이 여러 글을 읽으면 방문자 수에는 중복으로 들어갈 수 있습니다."
-                )
+                case_summary_rows.append({"구분": case_type, "글 수": articles_case, "이번 주 조회": views_curr, "전주 조회": views_prev, "증감": views_curr - views_prev, "글별 방문자 합계": users_case})
 
         for item in case_interest.get("top_items", []):
-            field_text = f" {item.get('field')} 분야의" if item.get("field") else ""
-            detail_lines.append(
-                f"이번 주에 많이 본{field_text} **{item.get('case_type')}**는 "
-                f"‘**{item.get('title')}**’입니다. "
-                f"**{int(item.get('active_users', 0)):,}명**이 **{int(item.get('views', 0)):,}회** 보았고, "
-                f"전주보다 **{int(item.get('view_change', 0)):+,}회** 달라졌습니다."
-            )
+            case_table_rows.append({"구분": item.get("case_type"), "분야": item.get("field") or "-", "제목": item.get("title"), "이번 주 조회": int(item.get("views", 0)), "본 사람 수": int(item.get("active_users", 0)), "전주 대비": int(item.get("view_change", 0))})
         report_search = st.session_state.get("ga4_search_rows", [])
         report_search_prev = st.session_state.get("ga4_search_prev_rows", [])
         if report_search:
@@ -2086,17 +2076,28 @@ GA4는 사람들이 검색창에 쓴 낱말을 대부분 알려주지 않습니�
                 name = str(row.get("search_engine"))
                 prev_engine[name] = prev_engine.get(name, 0) + int(row.get("sessions", 0))
             for engine in ("구글", "네이버"):
-                detail_lines.append(
-                    f"**{engine} 검색 유입**은 이번 주 **{curr_engine.get(engine, 0):,}회**, "
-                    f"전주 **{prev_engine.get(engine, 0):,}회**입니다."
-                )
+                now = curr_engine.get(engine, 0); before = prev_engine.get(engine, 0)
+                search_table_rows.append({"검색 서비스": engine, "이번 주 유입": now, "전주 유입": before, "증감": now - before})
 
-        if detail_lines:
+        if detail_lines or page_table_rows or case_summary_rows or case_table_rows or search_table_rows:
             with st.container(border=True):
                 st.markdown("##### 이번 주의 자세한 특징")
-                st.caption("방문한 날, 많이 본 페이지, 검색 유입을 전주와 비교한 쉬운 요약입니다.")
+                st.caption("이번 주와 전주를 표로 나란히 비교합니다. 초록색은 증가, 빨간색은 감소입니다.")
                 for line in detail_lines:
                     st.markdown(f"- {line}")
+                if page_table_rows:
+                    st.markdown("###### 많이 본 페이지·글 TOP 3")
+                    st.dataframe(_style_week_compare(pd.DataFrame(page_table_rows)), use_container_width=True, hide_index=True)
+                if case_summary_rows:
+                    st.markdown("###### 상담사례·승소사례 전체 요약")
+                    st.dataframe(_style_week_compare(pd.DataFrame(case_summary_rows)), use_container_width=True, hide_index=True)
+                    st.caption("글별 방문자 합계는 한 사람이 여러 글을 읽으면 중복될 수 있습니다.")
+                if case_table_rows:
+                    st.markdown("###### 많이 본 상담사례·승소사례")
+                    st.dataframe(_style_week_compare(pd.DataFrame(case_table_rows)), use_container_width=True, hide_index=True)
+                if search_table_rows:
+                    st.markdown("###### 구글·네이버 검색 유입")
+                    st.dataframe(_style_week_compare(pd.DataFrame(search_table_rows)), use_container_width=True, hide_index=True)
     except Exception as exc:  # noqa: BLE001
         st.caption(f"해석 생성 중 오류: {exc}")
 
