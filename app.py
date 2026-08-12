@@ -581,23 +581,6 @@ def _render_main_toolbar() -> None:
     with col_title:
         st.title("주간 광고 결과")
         st.caption("화면은 SQLite DB만 읽습니다. 메뉴별로 해당 채널만 동기화할 수 있습니다.")
-        required_cloud = {
-            "NAVER_CUSTOMER_ID": config.NAVER_CUSTOMER_ID,
-            "NAVER_API_KEY": config.NAVER_API_KEY,
-            "NAVER_API_SECRET": config.NAVER_API_SECRET,
-            "GOOGLE_ADS_DEVELOPER_TOKEN": config.GOOGLE_ADS_DEVELOPER_TOKEN,
-            "GOOGLE_ADS_CLIENT_ID": config.GOOGLE_ADS_CLIENT_ID,
-            "GOOGLE_ADS_CLIENT_SECRET": config.GOOGLE_ADS_CLIENT_SECRET,
-            "GOOGLE_ADS_REFRESH_TOKEN": config.GOOGLE_ADS_REFRESH_TOKEN,
-            "GOOGLE_ADS_CUSTOMER_ID": config.GOOGLE_ADS_CUSTOMER_ID,
-            "GA4_PROPERTY_ID": config.GA4_PROPERTY_ID,
-            "GOOGLE_APPLICATION_CREDENTIALS": config.GOOGLE_APPLICATION_CREDENTIALS,
-        }
-        missing_cloud = [key for key, value in required_cloud.items() if not value]
-        if missing_cloud:
-            st.error("Cloud Secrets 누락: " + ", ".join(missing_cloud))
-        else:
-            st.success("네이버 · 구글 · GA4 연결 설정이 모두 준비되었습니다.")
     with col_opt:
         force = st.checkbox(
             "강제 새로고침",
@@ -1362,56 +1345,168 @@ def _render_google_weekly_comparison_report() -> None:
 def _render_google_ads_control_center() -> None:
     """Read-only diagnosis plus proposal -> approval -> apply workflow."""
     st.markdown("#### 🛡️ 구글 광고 효율 관리 · 승인 후 실행")
-    st.caption("먼저 원인을 조사하고 변경안을 만듭니다. 승인 전에는 광고 계정을 바꾸지 않으며, 승인 후에도 ‘실행’ 버튼을 한 번 더 눌러야 실제 반영됩니다.")
+    st.caption(
+        "먼저 원인을 조사하고 변경안을 만듭니다. 승인 전에는 광고 계정을 바꾸지 않으며, "
+        "승인 후에도 ‘실행’ 버튼을 한 번 더 눌러야 실제 반영됩니다."
+    )
+
     if st.button("최신 동일 요일 감소 원인 조사", key=_wk("google_live_diagnose")):
-        today = date.today(); this_mon = today - timedelta(days=today.weekday()); prev_mon = this_mon - timedelta(days=7); prev_end = prev_mon + timedelta(days=today.weekday())
+        today = date.today()
+        this_mon = today - timedelta(days=today.weekday())
+        prev_mon = this_mon - timedelta(days=7)
+        prev_end = prev_mon + timedelta(days=today.weekday())
         with st.spinner("구글 광고의 최신 실적과 캠페인 상태를 읽는 중입니다..."):
             try:
-                st.session_state["google_live_diagnosis"] = {"current": google_weekly_views.fetch_campaign_week(this_mon, today), "previous": google_weekly_views.fetch_campaign_week(prev_mon, prev_end), "settings": google_ads_actions.fetch_live_campaign_settings(), "current_label": f"{this_mon} ~ {today}", "previous_label": f"{prev_mon} ~ {prev_end}"}
-            except Exception as exc: st.error(f"최신 광고 상태를 읽지 못했습니다: {exc}")
+                current = google_weekly_views.fetch_campaign_week(this_mon, today)
+                previous = google_weekly_views.fetch_campaign_week(prev_mon, prev_end)
+                settings = google_ads_actions.fetch_live_campaign_settings()
+                st.session_state["google_live_diagnosis"] = {
+                    "current": current,
+                    "previous": previous,
+                    "settings": settings,
+                    "current_label": f"{this_mon} ~ {today}",
+                    "previous_label": f"{prev_mon} ~ {prev_end}",
+                }
+            except Exception as exc:  # noqa: BLE001
+                st.error(f"최신 광고 상태를 읽지 못했습니다: {exc}")
+
     diag = st.session_state.get("google_live_diagnosis")
     if isinstance(diag, dict):
-        current=list(diag.get("current") or []); previous=list(diag.get("previous") or []); settings=list(diag.get("settings") or [])
-        curr_tot={k:sum(float(r.get(k) or 0) for r in current) for k in ("cost","clicks","impressions","conversions")}; prev_tot={k:sum(float(r.get(k) or 0) for r in previous) for k in ("cost","clicks","impressions","conversions")}
+        current = list(diag.get("current") or [])
+        previous = list(diag.get("previous") or [])
+        settings = list(diag.get("settings") or [])
+        curr_tot = {
+            "cost": sum(float(r.get("cost") or 0) for r in current),
+            "clicks": sum(int(r.get("clicks") or 0) for r in current),
+            "impressions": sum(int(r.get("impressions") or 0) for r in current),
+            "conversions": sum(float(r.get("conversions") or 0) for r in current),
+        }
+        prev_tot = {
+            "cost": sum(float(r.get("cost") or 0) for r in previous),
+            "clicks": sum(int(r.get("clicks") or 0) for r in previous),
+            "impressions": sum(int(r.get("impressions") or 0) for r in previous),
+            "conversions": sum(float(r.get("conversions") or 0) for r in previous),
+        }
         st.info(f"같은 요일끼리 비교: {diag.get('current_label')} vs {diag.get('previous_label')}")
-        cols=st.columns(4)
-        for col,label,key,fmt in ((cols[0],"비용","cost",",.0f"),(cols[1],"클릭","clicks",",.0f"),(cols[2],"노출","impressions",",.0f"),(cols[3],"전환","conversions",",.1f")):
-            before=float(prev_tot[key]); now=float(curr_tot[key]); pct=100.0*(now-before)/before if before else 0.0; col.metric(label,format(now,fmt),delta=f"{pct:+.1f}%")
-        policy_limited=[r for r in settings if r.get("primary_status")=="LIMITED" and any("POLICY" in str(x) for x in r.get("primary_status_reasons",[]))]
+        cols = st.columns(4)
+        for col, label, key, fmt in (
+            (cols[0], "비용", "cost", ",.0f"),
+            (cols[1], "클릭", "clicks", ",.0f"),
+            (cols[2], "노출", "impressions", ",.0f"),
+            (cols[3], "전환", "conversions", ",.1f"),
+        ):
+            before = float(prev_tot[key])
+            now = float(curr_tot[key])
+            pct = 100.0 * (now - before) / before if before else 0.0
+            col.metric(label, format(now, fmt), delta=f"{pct:+.1f}%")
+
+        limited = [r for r in settings if r.get("primary_status") == "LIMITED"]
+        policy_limited = [
+            r for r in limited if any("POLICY" in str(reason) for reason in r.get("primary_status_reasons", []))
+        ]
         if policy_limited:
-            st.error("정책 제한이 걸린 캠페인이 있습니다. 예산을 늘리기 전에 Google Ads의 ‘정책 관리자’에서 제한된 광고·이미지·문구를 수정하거나 이의신청해야 합니다.")
-            st.dataframe(pd.DataFrame(policy_limited)[["campaign_name","primary_status","primary_status_reasons","daily_budget_won"]].rename(columns={"campaign_name":"캠페인","primary_status":"현재 상태","primary_status_reasons":"제한 이유","daily_budget_won":"현재 일예산(원)"}),use_container_width=True,hide_index=True)
+            st.error(
+                "정책 제한이 걸린 캠페인이 있습니다. 예산을 늘리기 전에 Google Ads의 ‘정책 관리자’에서 "
+                "제한된 광고·이미지·문구를 수정하거나 이의신청해야 합니다."
+            )
+            st.dataframe(
+                pd.DataFrame(policy_limited)[
+                    ["campaign_name", "primary_status", "primary_status_reasons", "daily_budget_won"]
+                ].rename(
+                    columns={
+                        "campaign_name": "캠페인",
+                        "primary_status": "현재 상태",
+                        "primary_status_reasons": "제한 이유",
+                        "daily_budget_won": "현재 일예산(원)",
+                    }
+                ),
+                use_container_width=True,
+                hide_index=True,
+            )
+
     st.markdown("##### 목표 광고비 설정")
     st.caption("월 목표액을 일예산으로 나누어 각 활성 캠페인에 같은 비율로 조정하는 변경안을 만듭니다.")
-    monthly_target=st.number_input("구글 광고 월 목표 금액(원)",min_value=100_000,max_value=100_000_000,value=2_000_000,step=100_000,key=_wk("google_monthly_budget_target")); target_daily_total=float(monthly_target)/30.4
+    monthly_target = st.number_input(
+        "구글 광고 월 목표 금액(원)", min_value=100_000, max_value=100_000_000,
+        value=2_000_000, step=100_000, key=_wk("google_monthly_budget_target"),
+    )
+    target_daily_total = float(monthly_target) / 30.4
     st.caption(f"월 {monthly_target:,.0f}원은 전체 캠페인 일예산 합계 약 {target_daily_total:,.0f}원에 해당합니다.")
-    if st.button("목표 예산 변경안 만들기",key=_wk("google_budget_plan")):
+
+    if st.button("목표 예산 변경안 만들기", key=_wk("google_budget_plan")):
         with st.spinner("현재 일예산을 확인하고 안전한 변경안을 만드는 중입니다..."):
             try:
-                settings=google_ads_actions.fetch_live_campaign_settings(); enabled=[r for r in settings if r.get("status")=="ENABLED" and r.get("daily_budget_won",0)>0]; current_daily=sum(float(r["daily_budget_won"]) for r in enabled); raw_pct=100.0*(target_daily_total-current_daily)/current_daily if current_daily else 0.0; safe_pct=max(-abs(config.GOOGLE_ADS_MAX_BUDGET_CHANGE_PCT),min(abs(config.GOOGLE_ADS_MAX_BUDGET_CHANGE_PCT),raw_pct)); proposals=[]
-                for row in enabled[:int(config.GOOGLE_AI_PROPOSAL_MAX_PER_RUN)]:
-                    old=float(row["daily_budget_won"]); new=max(1_000.0,round(old*(1.0+safe_pct/100.0),-2)); proposals.append({"action_type":"campaign_budget_change","target_type":"campaign","campaign_name":row["campaign_name"],"current_value":f"{old:,.0f}원","proposed_value":f"{new:,.0f}원","change_pct":safe_pct,"rationale":f"월 목표 {monthly_target:,.0f}원에 맞춘 1차 조정입니다. 한 번의 변경은 안전상 ±{config.GOOGLE_ADS_MAX_BUDGET_CHANGE_PCT:.0f}% 이내로 제한합니다.","priority":"medium","confidence":"high"})
-                ids=google_ads_actions.resolve_and_store_proposals(proposals,f"월 목표 광고비 {monthly_target:,.0f}원","month",date.today().replace(day=1).isoformat(),f"월 목표 {monthly_target:,.0f}원"); st.success(f"실행 전 검토용 변경안 {len(ids)}개를 만들었습니다. 아래에서 각각 승인해 주세요.")
-            except Exception as exc: st.error(f"목표 예산 변경안을 만들지 못했습니다: {exc}")
-    if st.button("AI 효율 개선안 만들기",key=_wk("google_ai_proposals")):
+                settings = google_ads_actions.fetch_live_campaign_settings()
+                enabled = [r for r in settings if r.get("status") == "ENABLED" and r.get("daily_budget_won", 0) > 0]
+                current_daily = sum(float(r["daily_budget_won"]) for r in enabled)
+                raw_pct = 100.0 * (target_daily_total - current_daily) / current_daily if current_daily else 0.0
+                safe_pct = max(-abs(config.GOOGLE_ADS_MAX_BUDGET_CHANGE_PCT), min(abs(config.GOOGLE_ADS_MAX_BUDGET_CHANGE_PCT), raw_pct))
+                proposals = []
+                for row in enabled[: int(config.GOOGLE_AI_PROPOSAL_MAX_PER_RUN)]:
+                    old = float(row["daily_budget_won"])
+                    new = max(1_000.0, round(old * (1.0 + safe_pct / 100.0), -2))
+                    proposals.append(
+                        {
+                            "action_type": "campaign_budget_change",
+                            "target_type": "campaign",
+                            "campaign_name": row["campaign_name"],
+                            "current_value": f"{old:,.0f}원",
+                            "proposed_value": f"{new:,.0f}원",
+                            "change_pct": safe_pct,
+                            "rationale": f"월 목표 {monthly_target:,.0f}원에 맞춘 1차 조정입니다. 한 번의 변경은 안전상 ±{config.GOOGLE_ADS_MAX_BUDGET_CHANGE_PCT:.0f}% 이내로 제한합니다.",
+                            "priority": "medium",
+                            "confidence": "high",
+                        }
+                    )
+                ids = google_ads_actions.resolve_and_store_proposals(
+                    proposals, f"월 목표 광고비 {monthly_target:,.0f}원", "month",
+                    date.today().replace(day=1).isoformat(), f"월 목표 {monthly_target:,.0f}원",
+                )
+                st.success(f"실행 전 검토용 변경안 {len(ids)}개를 만들었습니다. 아래에서 각각 승인해 주세요.")
+            except Exception as exc:  # noqa: BLE001
+                st.error(f"목표 예산 변경안을 만들지 못했습니다: {exc}")
+
+    if st.button("AI 효율 개선안 만들기", key=_wk("google_ai_proposals")):
         with st.spinner("성과 데이터를 분석해 실행 전 검토안을 만드는 중입니다..."):
-            proposals,summary,err=gemini_weekly_analysis.propose_google_ads_actions("week")
-            if err: st.error(err)
+            proposals, summary, err = gemini_weekly_analysis.propose_google_ads_actions("week")
+            if err:
+                st.error(err)
             else:
-                ids=google_ads_actions.resolve_and_store_proposals(proposals,summary,"week",time_utils.calendar_week_bounds(-1)[2].isoformat(),"최근 완료 주"); st.session_state["google_ai_strategy_summary"]=summary; st.success(f"AI 변경안 {len(ids)}개를 만들었습니다. 아직 광고에는 반영되지 않았습니다.")
-    if st.session_state.get("google_ai_strategy_summary"): st.info(st.session_state["google_ai_strategy_summary"])
-    proposals=[dict(r) for r in db.fetch_google_ai_proposals() if r["status"] in ("pending","approved")][:20]
-    if proposals: st.markdown("##### 승인 대기·승인 완료 변경안")
+                ids = google_ads_actions.resolve_and_store_proposals(
+                    proposals, summary, "week", time_utils.calendar_week_bounds(-1)[2].isoformat(), "최근 완료 주",
+                )
+                st.session_state["google_ai_strategy_summary"] = summary
+                st.success(f"AI 변경안 {len(ids)}개를 만들었습니다. 아직 광고에는 반영되지 않았습니다.")
+    if st.session_state.get("google_ai_strategy_summary"):
+        st.info(st.session_state["google_ai_strategy_summary"])
+
+    proposals = [dict(r) for r in db.fetch_google_ai_proposals() if r["status"] in ("pending", "approved")][:20]
+    if proposals:
+        st.markdown("##### 승인 대기·승인 완료 변경안")
     for row in proposals:
-        with st.expander(f"#{row['id']} · {row['campaign_name'] or row['keyword_text']} · {row['status']}",expanded=row["status"]=="approved"):
-            st.write(f"**변경:** {row['current_value'] or '-'} → {row['proposed_value'] or '-'} ({float(row['change_pct'] or 0):+.1f}%)"); st.write(f"**이유:** {row['rationale'] or '-'}"); st.caption(f"대상 확인: {row['resolution_status']} · {row['resolution_note'] or '정상'}"); a,b,c=st.columns(3)
-            if row["status"]=="pending":
-                if a.button("승인",key=_wk(f"approve_google_{row['id']}")): db.update_google_ai_proposal(row["id"],status="approved",reviewed_at=datetime.utcnow().isoformat()+"Z"); st.rerun()
-                if b.button("거절",key=_wk(f"reject_google_{row['id']}")): db.update_google_ai_proposal(row["id"],status="rejected",reviewed_at=datetime.utcnow().isoformat()+"Z"); st.rerun()
-            elif row["status"]=="approved":
-                if not config.GOOGLE_ADS_ALLOW_WRITE: st.warning("실제 실행 잠금이 켜져 있습니다. Secrets에서 GOOGLE_ADS_ALLOW_WRITE=true로 설정해야 실행할 수 있습니다.")
-                if c.button("승인한 변경 실행",key=_wk(f"apply_google_{row['id']}"),disabled=not config.GOOGLE_ADS_ALLOW_WRITE):
-                    result=google_ads_actions.apply_proposal(int(row["id"])); st.success("구글 광고 계정에 변경을 적용했습니다.") if result.get("ok") else st.error(result.get("error") or "실행 실패"); st.rerun()
+        label = f"#{row['id']} · {row['campaign_name'] or row['keyword_text']} · {row['status']}"
+        with st.expander(label, expanded=row["status"] == "approved"):
+            st.write(f"**변경:** {row['current_value'] or '-'} → {row['proposed_value'] or '-'} ({float(row['change_pct'] or 0):+.1f}%)")
+            st.write(f"**이유:** {row['rationale'] or '-'}")
+            st.caption(f"대상 확인: {row['resolution_status']} · {row['resolution_note'] or '정상'}")
+            a, b, c = st.columns(3)
+            if row["status"] == "pending":
+                if a.button("승인", key=_wk(f"approve_google_{row['id']}")):
+                    db.update_google_ai_proposal(row["id"], status="approved", reviewed_at=datetime.utcnow().isoformat() + "Z")
+                    st.rerun()
+                if b.button("거절", key=_wk(f"reject_google_{row['id']}")):
+                    db.update_google_ai_proposal(row["id"], status="rejected", reviewed_at=datetime.utcnow().isoformat() + "Z")
+                    st.rerun()
+            elif row["status"] == "approved":
+                if not config.GOOGLE_ADS_ALLOW_WRITE:
+                    st.warning("실제 실행 잠금이 켜져 있습니다. Secrets에서 GOOGLE_ADS_ALLOW_WRITE=true로 설정해야 실행할 수 있습니다.")
+                if c.button("승인한 변경 실행", key=_wk(f"apply_google_{row['id']}"), disabled=not config.GOOGLE_ADS_ALLOW_WRITE):
+                    result = google_ads_actions.apply_proposal(int(row["id"]))
+                    if result.get("ok"):
+                        st.success("구글 광고 계정에 변경을 적용했습니다.")
+                    else:
+                        st.error(result.get("error") or "실행 실패")
+                    st.rerun()
 
 
 def _render_ga4_traffic_report() -> None:
@@ -2046,7 +2141,15 @@ GA4는 사람들이 검색창에 쓴 낱말을 대부분 알려주지 않습니�
             for rank, row in enumerate(report_content[:3], start=1):
                 curr_views = int(row.get("views", 0))
                 before_views = prev_views.get(str(row.get("page_path")), 0)
-                page_table_rows.append({"순위": rank, "페이지·글 제목": row.get("page_title") or row.get("page_path"), "이번 주": curr_views, "전주": before_views, "증감": curr_views - before_views})
+                page_table_rows.append(
+                    {
+                        "순위": rank,
+                        "페이지·글 제목": row.get("page_title") or row.get("page_path"),
+                        "이번 주": curr_views,
+                        "전주": before_views,
+                        "증감": curr_views - before_views,
+                    }
+                )
 
         case_interest = homepage_content.summarize_case_views(
             report_content,
@@ -2060,10 +2163,28 @@ GA4는 사람들이 검색창에 쓴 낱말을 대부분 알려주지 않습니�
             users_case = int(values.get("users_curr", 0))
             articles_case = int(values.get("articles_curr", 0))
             if views_curr > 0 or views_prev > 0:
-                case_summary_rows.append({"구분": case_type, "글 수": articles_case, "이번 주 조회": views_curr, "전주 조회": views_prev, "증감": views_curr - views_prev, "글별 방문자 합계": users_case})
+                case_summary_rows.append(
+                    {
+                        "구분": case_type,
+                        "글 수": articles_case,
+                        "이번 주 조회": views_curr,
+                        "전주 조회": views_prev,
+                        "증감": views_curr - views_prev,
+                        "글별 방문자 합계": users_case,
+                    }
+                )
 
         for item in case_interest.get("top_items", []):
-            case_table_rows.append({"구분": item.get("case_type"), "분야": item.get("field") or "-", "제목": item.get("title"), "이번 주 조회": int(item.get("views", 0)), "본 사람 수": int(item.get("active_users", 0)), "전주 대비": int(item.get("view_change", 0))})
+            case_table_rows.append(
+                {
+                    "구분": item.get("case_type"),
+                    "분야": item.get("field") or "-",
+                    "제목": item.get("title"),
+                    "이번 주 조회": int(item.get("views", 0)),
+                    "본 사람 수": int(item.get("active_users", 0)),
+                    "전주 대비": int(item.get("view_change", 0)),
+                }
+            )
         report_search = st.session_state.get("ga4_search_rows", [])
         report_search_prev = st.session_state.get("ga4_search_prev_rows", [])
         if report_search:
@@ -2076,8 +2197,11 @@ GA4는 사람들이 검색창에 쓴 낱말을 대부분 알려주지 않습니�
                 name = str(row.get("search_engine"))
                 prev_engine[name] = prev_engine.get(name, 0) + int(row.get("sessions", 0))
             for engine in ("구글", "네이버"):
-                now = curr_engine.get(engine, 0); before = prev_engine.get(engine, 0)
-                search_table_rows.append({"검색 서비스": engine, "이번 주 유입": now, "전주 유입": before, "증감": now - before})
+                now = curr_engine.get(engine, 0)
+                before = prev_engine.get(engine, 0)
+                search_table_rows.append(
+                    {"검색 서비스": engine, "이번 주 유입": now, "전주 유입": before, "증감": now - before}
+                )
 
         if detail_lines or page_table_rows or case_summary_rows or case_table_rows or search_table_rows:
             with st.container(border=True):
@@ -2557,19 +2681,30 @@ def render_dashboard_main_only() -> None:
         else:
             daily_chart = merged.copy()
             daily_chart["날짜"] = pd.to_datetime(daily_chart["ts_hour"]).dt.strftime("%m월 %d일")
-            daily_chart = daily_chart.groupby("날짜", as_index=False).agg(광고비=("total_cost", "sum"), 세션=("sessions", "sum"))
+            daily_chart = daily_chart.groupby("날짜", as_index=False).agg(
+                광고비=("total_cost", "sum"), 세션=("sessions", "sum")
+            )
             fig1 = go.Figure()
-            fig1.add_trace(go.Bar(x=daily_chart["날짜"],y=daily_chart["광고비"],name="광고비",yaxis="y",text=[f"{v:,.0f}원" for v in daily_chart["광고비"]],textposition="outside",hovertemplate="%{x}<br>광고비 %{y:,.0f}원<extra></extra>"))
+            fig1.add_trace(
+                go.Bar(
+                    x=daily_chart["날짜"], y=daily_chart["광고비"], name="광고비", yaxis="y",
+                    text=[f"{v:,.0f}원" for v in daily_chart["광고비"]], textposition="outside",
+                    hovertemplate="%{x}<br>광고비 %{y:,.0f}원<extra></extra>",
+                )
+            )
             fig1.add_trace(
                 go.Scatter(
-                    x=daily_chart["날짜"],y=daily_chart["세션"],name="세션",yaxis="y2",mode="lines+markers+text",text=[f"{int(v):,}회" for v in daily_chart["세션"]],textposition="top center",hovertemplate="%{x}<br>세션 %{y:,.0f}회<extra></extra>"
+                    x=daily_chart["날짜"], y=daily_chart["세션"], name="세션", yaxis="y2", mode="lines+markers+text",
+                    text=[f"{int(v):,}회" for v in daily_chart["세션"]], textposition="top center",
+                    hovertemplate="%{x}<br>세션 %{y:,.0f}회<extra></extra>",
                 )
             )
             fig1.update_layout(
-                height=560,font=dict(size=15),
-                yaxis=dict(title="광고비 (원)",side="left",tickformat=",.0f",ticksuffix="원"),
-                yaxis2=dict(title="세션 (회)",overlaying="y",side="right",showgrid=False,tickformat=",.0f",ticksuffix="회"),
-                xaxis=dict(title="날짜",tickfont=dict(size=14)),
+                height=560,
+                font=dict(size=15),
+                yaxis=dict(title="광고비 (원)", side="left", tickformat=",.0f", ticksuffix="원"),
+                yaxis2=dict(title="세션 (회)", overlaying="y", side="right", showgrid=False, tickformat=",.0f", ticksuffix="회"),
+                xaxis=dict(title="날짜", tickfont=dict(size=14)),
                 hovermode="x unified",
                 bargap=0.32,
             )
