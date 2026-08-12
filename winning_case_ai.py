@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import re
 import base64
+from collections import Counter
 from pathlib import Path
 
 import gemini_weekly_analysis as gemini
@@ -48,23 +49,56 @@ def _load_cases() -> list[dict]:
     return []
 
 
+def classification_catalog() -> dict[str, dict[str, int]]:
+    catalog: dict[str, Counter] = {category: Counter() for category in CATEGORIES}
+    for row in _load_cases():
+        category = str(row.get("field", "")).strip()
+        label = str(row.get("tag", "")).strip()
+        if category in catalog and label:
+            catalog[category][label] += 1
+    return {
+        category: dict(counts.most_common())
+        for category, counts in catalog.items()
+    }
+
+
+def case_tag_options(category: str | None = None) -> list[str]:
+    catalog = classification_catalog()
+    if category in catalog:
+        return list(catalog[category])
+    return list(dict.fromkeys(label for labels in catalog.values() for label in labels))
+
+
 def style_profile(limit: int = 20) -> dict:
-    rows = _load_cases()[:limit]
+    all_rows = _load_cases()
+    rows = all_rows[:limit]
+    category_examples: dict[str, list[str]] = {category: [] for category in CATEGORIES}
+    for row in all_rows:
+        category = str(row.get("field", "")).strip()
+        title = str(row.get("title", "")).strip()
+        if category in category_examples and title and len(category_examples[category]) < 5:
+            category_examples[category].append(title)
     if not rows:
         return {
             "sample_count": 0,
+            "style_sample_count": 0,
             "sections": ["서평을 찾게 된 경위", "변호사의 조력", "소송 결과", "사건의 의의"],
             "example_titles": [],
             "example_tags": [],
+            "label_catalog": classification_catalog(),
+            "category_title_examples": category_examples,
         }
-    lengths = sorted(len(str(row.get("body", ""))) for row in rows)
+    lengths = sorted(len(str(row.get("body", ""))) for row in all_rows)
     return {
-        "sample_count": len(rows),
+        "sample_count": len(all_rows),
+        "style_sample_count": len(rows),
         "median_chars": lengths[len(lengths) // 2],
         "sections": ["서평을 찾게 된 경위", "변호사의 조력", "소송 결과", "사건의 의의"],
         "example_titles": [str(row.get("title", "")) for row in rows[:10]],
         "example_tags": [str(row.get("tag", "")) for row in rows[:10]],
         "example_body_openings": [str(row.get("body", ""))[:1200] for row in rows[:3]],
+        "label_catalog": classification_catalog(),
+        "category_title_examples": category_examples,
     }
 
 
@@ -148,9 +182,11 @@ def organize(raw_text: str = "", current: dict | None = None, images: list[dict]
 - 판결 결과가 원문에 명시되지 않았다면 case_result를 빈 문자열로 둔다.
 - 개인정보는 의뢰인, 상대방, A씨, B씨 등으로 익명화한다.
 - category는 반드시 아래 기존 분류 중 하나만 선택한다: {json.dumps(CATEGORIES, ensure_ascii=False)}
+- 사건의 주된 법률 분야를 기준으로 category를 판단하고, 부수적인 쟁점만 보고 다른 분류를 선택하지 않는다.
 - title은 상세페이지 제목이며 기존처럼 '[사건유형] 구체적 결과를 요약한 사례' 형태를 우선한다.
 - case_title은 메인 슬라이드용 짧은 승소 제목이다. 예: '[손해배상] 상대방청구 전부 기각'.
-- case_tag는 목록에 노출할 짧은 사건 분야 라벨이다. 예: '민사', '민사·손해배상', '형사'.
+- case_tag는 선택한 category의 label_catalog에 있는 실제 목록 라벨 중 사건에 가장 구체적으로 맞는 값을 우선한다.
+- label_catalog에 맞는 값이 전혀 없을 때만 기존 라벨의 길이와 형식을 따라 짧은 라벨을 작성한다.
 - 본문 고정 필드는 실제 홈페이지와 동일하게 case_background, lawyer_support, case_result, case_significance 네 개다.
 - 각 본문 필드는 HTML로 작성한다. 문단은 <p>, 빈 간격은 <p class="blank"></p>, 핵심 소항목은 <p><strong>① ...</strong></p>를 사용한다.
 - 결과를 과장하거나 성공을 보장하는 문구를 쓰지 않는다.

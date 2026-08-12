@@ -213,12 +213,14 @@ def _apply_ai_result(result: dict) -> None:
         st.session_state[state_key] = result.get(result_key, "")
     for key in ("privacy_review", "change_log", "warnings", "missing_information"):
         st.session_state[f"wc_{key}"] = result.get(key, [])
+    st.session_state["wc_ai_generated"] = True
+    st.session_state["wc_ai_generated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
 def _current_data() -> dict:
     return {
         "category": st.session_state.get("wc_category", next(iter(CATEGORIES))),
-        "case_tag": st.session_state.get("wc_case_tag", ""),
+        "case_tag": st.session_state.get("wc_case_tag", "") or "",
         "case_title": st.session_state.get("wc_case_title", ""),
         "title": st.session_state.get("wc_title", ""),
         "lawyer": st.session_state.get("wc_lawyer", "장진훈"),
@@ -243,6 +245,10 @@ def render_winning_case_admin() -> None:
     with st.expander(f"기존 승소사례 구조 ({profile.get('sample_count', 0)}건 기준)"):
         st.write("고정 항목: 서평을 찾게 된 경위 → 변호사의 조력 → 소송 결과 → 사건의 의의")
         st.write("기존 분류: " + " / ".join(CATEGORIES))
+        st.markdown("**분류별 기존 목록 라벨**")
+        for category, labels in profile.get("label_catalog", {}).items():
+            formatted = " / ".join(f"{label} ({count}건)" for label, count in labels.items())
+            st.caption(f"{category}: {formatted or '등록된 라벨 없음'}")
         st.caption("상세 제목, 메인 슬라이드용 짧은 제목, 목록 라벨은 서로 다른 기존 필드로 저장됩니다.")
 
     st.subheader("1. 원문과 이미지")
@@ -291,12 +297,26 @@ def render_winning_case_admin() -> None:
                 with columns[index % len(columns)]:
                     st.image(_preview_image(upload), caption=f"{index + 1}. {upload.name}", use_container_width=True)
 
-    if st.button(
-        "AI로 승소사례 분석",
+    if not raw.strip():
+        st.info(
+            f"AI 자동 작성 대기: 사건 관련 원문을 입력하면 기존 {profile.get('sample_count', 0)}건의 "
+            "분류·목록 라벨·문체를 참고해 승소사례 등록 포맷으로 정리합니다."
+        )
+    elif not image_ai_consent:
+        st.warning("AI 자동 작성 대기: 첨부 이미지 분석 동의를 확인해 주세요.")
+    else:
+        st.success("AI 자동 작성 준비 완료: 아래 버튼을 누르면 분류, 목록 라벨, 제목과 본문 고정 항목을 자동 입력합니다.")
+
+    analyze_clicked = st.button(
+        "AI로 승소사례 자동 작성",
         type="primary",
         use_container_width=True,
-        disabled=not raw.strip() or not image_ai_consent,
-    ):
+    )
+    if analyze_clicked and not raw.strip():
+        st.warning("사건 관련 원문을 먼저 입력해 주세요. 원문을 넣으면 AI가 기존 홈페이지 형식에 맞춰 자동 작성합니다.")
+    elif analyze_clicked and not image_ai_consent:
+        st.warning("첨부 이미지의 AI 분석 동의를 먼저 확인해 주세요.")
+    elif analyze_clicked:
         try:
             with st.spinner("기존 승소사례 형식에 맞춰 사실관계와 고정 항목을 정리하고 있습니다..."):
                 result = winning_case_ai.organize(
@@ -310,9 +330,29 @@ def render_winning_case_admin() -> None:
             st.error(str(exc))
 
     st.subheader("2. AI 분석 결과 편집")
-    st.selectbox("분류 *", list(CATEGORIES), key="wc_category")
+    if st.session_state.get("wc_ai_generated"):
+        generated_at = st.session_state.get("wc_ai_generated_at", "")
+        st.success(f"AI 자동 입력 완료 ({generated_at}) · 추천값을 확인한 뒤 모든 항목을 직접 바꿀 수 있습니다.")
+    else:
+        st.info("AI 분석 전입니다. 위의 자동 작성 버튼을 누르면 아래 분류, 라벨, 제목과 본문이 자동으로 채워집니다. 직접 먼저 작성해도 됩니다.")
+
+    selected_category = st.selectbox(
+        "분류 (AI 추천·직접 변경 가능) *",
+        list(CATEGORIES),
+        key="wc_category",
+        help="운영 DB와 호환되는 기존 6개 분류입니다. AI 추천 후 다른 분류를 직접 선택할 수 있습니다.",
+    )
+    tag_options = winning_case_ai.case_tag_options(selected_category)
     a, b = st.columns(2)
-    a.text_input("목록 라벨 *", key="wc_case_tag", placeholder="예: 민사·손해배상")
+    a.selectbox(
+        "목록 라벨 (AI 추천·직접 입력 가능) *",
+        tag_options,
+        index=None,
+        key="wc_case_tag",
+        placeholder="기존 라벨 선택 또는 직접 입력",
+        accept_new_options=True,
+        help="현재 분류에서 실제 사용된 라벨을 빈도순으로 제시합니다. 원하는 문구가 없으면 직접 입력할 수 있습니다.",
+    )
     b.text_input("메인 슬라이드용 짧은 제목 *", key="wc_case_title", placeholder="예: [손해배상] 상대방청구 전부 기각")
     st.text_input("상세페이지 제목 *", key="wc_title", placeholder="예: [손해배상] 침수 피해 손해배상 청구를 방어한 사례")
     st.text_input("담당 변호사", key="wc_lawyer")
