@@ -16,6 +16,7 @@ from plotly.subplots import make_subplots
 import pandas as pd
 import streamlit as st
 import case_admin
+import winning_case_admin
 import streamlit.components.v1 as components
 
 import charts
@@ -59,6 +60,7 @@ _PAGE_DEF: list[tuple[str, str]] = [
     ("google", "구글"),
     ("homepage", "홈페이지"),
     ("case_admin", "상담사례 등록"),
+    ("winning_case_admin", "승소사례 등록"),
 ]
 _PAGE_LABELS = [b for _, b in _PAGE_DEF]
 _PAGE_ID_BY_LABEL = {b: a for a, b in _PAGE_DEF}
@@ -2237,6 +2239,9 @@ def render_dashboard_main_only() -> None:
     """메인 패널 — 조회 주·섹션은 사이드바 session_state 참조."""
     if _current_page() == "case_admin":
         case_admin.render_case_admin()
+        return
+    if _current_page() == "winning_case_admin":
+        winning_case_admin.render_winning_case_admin()
         return
     _inject_print_css()
     labels, label_to_offset = _dash_week_lookups()

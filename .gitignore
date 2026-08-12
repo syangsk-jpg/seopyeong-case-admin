@@ -1,6 +1,7 @@
 .streamlit/secrets.toml
 .env
 data/case_drafts/
+data/winning_case_drafts/
 __pycache__/
 *.pyc
 *.log
