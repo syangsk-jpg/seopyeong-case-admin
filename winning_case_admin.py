@@ -439,5 +439,3 @@ def render_winning_case_admin() -> None:
             st.link_button("기존 관리자에서 관리", f"{SITE_BASE_URL}/admin?module=document&act=dispDocumentAdminList")
         except Exception as exc:
             st.error(str(exc))
-    elif errors:
-        st.info("등록 전 확인: " + " ".join(errors))
