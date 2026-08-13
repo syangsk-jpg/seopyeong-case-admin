@@ -14,6 +14,7 @@ import google_weekly_report
 import merge
 import monthly_report
 import naver_weekly_report
+import rhymix_traffic_analysis
 import time_utils
 
 _GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
@@ -319,6 +320,7 @@ def _build_week_context() -> dict[str, Any]:
             prev_mon, prev_sun, curr_mon, curr_sun
         ),
         "homepage_ga4": _ga4_homepage_context(curr_mon, curr_sun, prev_mon, prev_sun),
+        "rhymix_server_traffic": rhymix_traffic_analysis.build_server_traffic_context(curr_mon, curr_sun),
         "recent_weeks_trend": _recent_weeks_trend(merged_all, weeks=6),
         "recent_alerts": _recent_alerts(),
     }
@@ -400,6 +402,7 @@ def _build_month_context() -> dict[str, Any]:
             "월간 리포트는 월요일이 속한 주차 스냅샷을 합산한 근사치입니다 (네이버 캠페인별 자동 코멘트는 주간 전용)."
         ],
         "homepage_ga4": _ga4_homepage_context(curr_start, curr_end, prev_start, prev_end),
+        "rhymix_server_traffic": rhymix_traffic_analysis.build_server_traffic_context(curr_start, curr_end),
         "recent_weeks_trend": _recent_weeks_trend(merged_all, weeks=6),
         "recent_alerts": _recent_alerts(),
     }
@@ -423,6 +426,10 @@ def _system_instruction(context_json: str) -> str:
 - `homepage_ga4`(홈페이지 유입 채널·주요 전환 이벤트·AI 상담 사용)는 광고비 관점이 아니라
   "홈페이지에 들어온 다음 실제로 무엇을 했는지"로 해석 — 각 이벤트의 `description`을 참고해
   단순히 숫자를 나열하지 말고 그 숫자가 의미하는 사용자 행동을 풀어서 설명할 것
+- `rhymix_server_traffic`가 available이면 서버 원본 순방문자·페이지뷰를 GA4와 교차 검증할 것.
+  시간대 집중, 28일 중앙값, 광고 SDK·프리페치·봇성 신호를 확인하고, `human_like_reference_estimate`는
+  실제 고객 확정치가 아닌 참고치라고 명시할 것. Rhymix와 GA4의 집계 기준이 달라 숫자가 일치하지
+  않을 수 있으므로 어느 한쪽을 틀렸다고 단정하지 말 것
 - 데이터에 없는 내용은 추측하지 말고 "데이터에 없음"이라고 말할 것
 - 개발자/기술 용어(api, snapshot, hourly 등)는 사용자에게 노출하지 말 것
 - 마크다운 제목(##, ###)과 불릿을 사용
@@ -447,8 +454,9 @@ def _initial_user_prompt(period: Literal["week", "month"] = "week") -> str:
 6. **추세** — 최근 흐름 (개선/악화)
 7. **트래픽·전환** — 세션·ROAS 관점
 8. **홈페이지에서 일어난 일** — `homepage_ga4` 기준, 어떤 채널로 들어와 어떤 행동(전문분야 클릭, 변호사 소개 체류, 카카오톡/로톡 문의, AI 상담 전송 등)을 했는지 사람이 이해할 수 있게 해석. 방문은 늘었는데 문의·상담 전환이 따라오지 않는 등 "숫자 따로 행동 따로"인 구간이 있으면 짚어줄 것
-9. **리스크·이상 징후**
-10. **실행 제안** — 우선순위 3~5개 (구체적 액션, 실제로 실행 가능한 수준으로). 홈페이지 개선 제안(어떤 버튼·문구·페이지를 손보면 좋을지)을 최소 1개 이상 포함할 것
+9. **서버 트래픽 품질** — `rhymix_server_traffic`가 available이면 순방문자·페이지뷰·28일 기준선·시간대 급증·광고 웹뷰/봇 의심 비율을 설명하고 GA4와 교차 해석. 사용할 수 없으면 이 섹션에서 설정 필요라고 한 줄만 표시
+10. **리스크·이상 징후**
+11. **실행 제안** — 우선순위 3~5개 (구체적 액션, 실제로 실행 가능한 수준으로). 홈페이지 개선 제안(어떤 버튼·문구·페이지를 손보면 좋을지)을 최소 1개 이상 포함할 것
 
 분량: 900~1500자. 숫자 근거를 충분히 넣어 주세요."""
 

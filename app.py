@@ -866,7 +866,11 @@ def _render_gemini_weekly_analysis() -> None:
     _, _, curr_mon, curr_sun = time_utils.calendar_week_bounds(-1)
     _, _, prev_mon, prev_sun = time_utils.calendar_week_bounds(-2)
     st.caption(_week_compare_caption(curr_mon, curr_sun, prev_mon, prev_sun))
-    st.caption("분석 후 **📄 PDF 보고서**를 받으면 AI 내용이 보고서에 자동 포함됩니다.")
+    st.caption("GA4·광고·전환과 Rhymix 서버 원본 트래픽을 함께 분석합니다. 분석 후 **📄 PDF 보고서**에도 자동 포함됩니다.")
+    if config.RHYMIX_TRAFFIC_ENABLED:
+        st.caption("✅ 서버 트래픽 정밀 분석 사용 중 · 집계 데이터만 AI 분석에 포함되며 IP 원문은 전송하지 않습니다.")
+    else:
+        st.caption("ℹ️ 서버 트래픽 정밀 분석은 비활성 상태입니다. `.env`에서 명시적으로 활성화할 수 있습니다.")
     if not (config.GEMINI_API_KEY or "").strip():
         with st.container(border=True):
             st.info("`.env` 파일에 `GEMINI_API_KEY`를 설정하면 AI 주간 분석을 사용할 수 있습니다.")

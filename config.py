@@ -92,6 +92,18 @@ GEMINI_API_KEY = _get("GEMINI_API_KEY")
 # 기본 모델 (gemini-2.0-flash는 무료 할당량 소진이 잦아 2.5-flash 권장)
 GEMINI_MODEL = _get("GEMINI_MODEL", "gemini-2.5-flash") or "gemini-2.5-flash"
 
+# Rhymix 원본 서버 트래픽 — AI 분석에 집계값만 제공 (IP 원문은 전송하지 않음)
+RHYMIX_TRAFFIC_ENABLED = (_get("RHYMIX_TRAFFIC_ENABLED", "false") or "false").lower() in ("1", "true", "yes")
+RHYMIX_CREDENTIALS_FILE = _get("RHYMIX_CREDENTIALS_FILE")
+RHYMIX_SSH_HOST = _get("RHYMIX_SSH_HOST")
+RHYMIX_SSH_PORT = _get("RHYMIX_SSH_PORT", "22") or "22"
+RHYMIX_SSH_USER = _get("RHYMIX_SSH_USER")
+RHYMIX_SSH_PASSWORD = _get("RHYMIX_SSH_PASSWORD")
+RHYMIX_DB_USER = _get("RHYMIX_DB_USER")
+RHYMIX_DB_PASSWORD = _get("RHYMIX_DB_PASSWORD")
+RHYMIX_DB_NAME = _get("RHYMIX_DB_NAME")
+RHYMIX_DB_PREFIX = _get("RHYMIX_DB_PREFIX", "wp_") or "wp_"
+
 # False면 로그인 화면 없이 바로 대시보드 진입
 LOGIN_REQUIRED = (_get('LOGIN_REQUIRED', 'false') or 'false').lower() in ('1', 'true', 'yes')
 
@@ -102,4 +114,3 @@ GOOGLE_ADS_MAX_BUDGET_CHANGE_PCT = float(_get("GOOGLE_ADS_MAX_BUDGET_CHANGE_PCT"
 GOOGLE_ADS_MAX_BID_CHANGE_PCT = float(_get("GOOGLE_ADS_MAX_BID_CHANGE_PCT", "30") or "30")
 # 한 번의 AI 분석에서 생성할 최대 제안 개수
 GOOGLE_AI_PROPOSAL_MAX_PER_RUN = int(_get("GOOGLE_AI_PROPOSAL_MAX_PER_RUN", "10") or "10")
-
